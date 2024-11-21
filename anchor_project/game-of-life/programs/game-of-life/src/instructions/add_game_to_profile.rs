@@ -1,35 +1,68 @@
 use anchor_lang::prelude::*;
 use crate::states::*;
 
-use crate::errors::GameError;
+// use crate::errors::GameError;
 
 
-pub fn add_game_to_profile(ctx: Context<AddGameToProfile>) -> Result<()> {
-    let profile = &mut ctx.accounts.user_profile;
-    let game = ctx.accounts.game_config.key();
+pub fn add_game(ctx: Context<AddGameToProfile>) -> Result<()> {
+    let user_profile = &mut ctx.accounts.user_profile;
+    let game_save = &mut ctx.accounts.game_save;
 
-    // Ensure we don't exceed the maximum saved games limit
-    require!(
-        profile.saved_games.len() < UserProfile::MAX_SAVED_GAMES,
-        GameError::TooManySavedGames
-    );
+    // Populate the GameSave PDA
+    game_save.user = ctx.accounts.user.key();
+    game_save.game = ctx.accounts.game_config.key();
+    game_save.saved_at = Clock::get()?.unix_timestamp;
+    game_save.bump = ctx.bumps.game_save;
 
-    // Ensure the game isn't already saved
-    require!(
-        !profile.saved_games.contains(&game),
-        GameError::GameAlreadySaved
-    );
+    // Optional: Update user profile metadata if necessary
+    user_profile.saved_game_counter += 1;
 
-    profile.saved_games.push(game);
+    msg!("Derived user_profile PDA: {:?}", ctx.accounts.user_profile.key());
+    msg!("Derived game_save PDA: {:?}", ctx.accounts.game_save.key());
+    
     Ok(())
 }
 
 
 #[derive(Accounts)]
 pub struct AddGameToProfile<'info> {
-    #[account(mut, seeds = [USER_SEED.as_bytes(), user.key().as_ref()], bump)]
-    pub user_profile: Account<'info, UserProfile>,
-    pub game_config: Account<'info, GameConfig>,
-    pub user: Signer<'info>,
+    #[account(mut)]
+    pub user: Signer<'info>, // User adding the game
+
+    #[account(
+        init,
+        payer = user,
+        space = 8 + GameSave::LEN,
+        seeds = [
+            GAME_SAVE_SEED.as_bytes(),
+            user.key().as_ref(),
+        ],
+        bump
+    )]
+    pub game_save: Account<'info, GameSave>, // New save entry
+
+    #[account(
+        mut,
+        seeds = [
+            USER_SEED.as_bytes(),
+            user.key().as_ref(), // Reference user directly
+        ],
+        bump
+    )]
+    pub user_profile: Account<'info, UserProfile>, // The user's profile
+
+    #[account(
+        seeds = [
+            GAME_SEED.as_bytes(),
+            game_config_owner.key().as_ref(),
+        ],
+        bump = game_config.bump
+    )]
+    pub game_config: Account<'info, GameConfig>, // The game being saved
+
+    pub game_config_owner: Signer<'info>, // Owner of the game
+
+    pub system_program: Program<'info, System>, // System program
 }
+
 

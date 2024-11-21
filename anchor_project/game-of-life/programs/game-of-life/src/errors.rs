@@ -10,5 +10,7 @@ pub enum GameError {
     GameNotSaved,
     #[msg("Too many alive cells")]
     TooManyAliveCells,
+    #[msg("Min games reached - no games was saved")]
+    MinGamesReached
 }
 

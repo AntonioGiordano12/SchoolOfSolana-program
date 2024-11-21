@@ -1,28 +1,54 @@
 use anchor_lang::prelude::*;
 use crate::states::*;
-use crate::{errors::GameError};
 
-pub fn remove_game_from_profile(ctx: Context<RemoveGameFromProfile>) -> Result<()> {
-    let profile = &mut ctx.accounts.user_profile;
-    let game = ctx.accounts.game_config.key();
+use crate::errors::GameError;
 
-    // Ensure the game exists in the saved list
-    require!(
-        profile.saved_games.contains(&game),
-        GameError::GameNotSaved
-    );
+pub fn remove_game(ctx: Context<RemoveGameFromProfile>) -> Result<()> {
+    let user_profile = &mut ctx.accounts.user_profile;
+    // let game_save = &mut ctx.accounts.game_save;
 
-    // Remove the game from the saved list
-    profile.saved_games.retain(|&g| g != game);
+
+    // Update user profile metadata
+    user_profile.saved_game_counter = user_profile.saved_game_counter.checked_sub(1).ok_or(GameError::MinGamesReached)?;
+
     Ok(())
 }
 
 
 #[derive(Accounts)]
 pub struct RemoveGameFromProfile<'info> {
-    #[account(mut, seeds = [USER_SEED.as_bytes(), user.key().as_ref()], bump)]
-    pub user_profile: Account<'info, UserProfile>,
-    pub game_config: Account<'info, GameConfig>,
-    pub user: Signer<'info>,
+    #[account(mut)]
+    pub user: Signer<'info>, // user removing the game
+    #[account(
+        mut,
+        close=user,
+        seeds = [
+            GAME_SAVE_SEED.as_bytes(),
+            user.key().as_ref(),
+            game_config.key().as_ref(),
+        ],
+        bump = game_save.bump,
+    )]
+    pub game_save: Account<'info, GameSave>, // Game save entry to remove
+    #[account(
+        mut,
+        seeds = [
+            USER_SEED.as_bytes(),
+            user.key().as_ref(),
+        ],
+        bump = user_profile.bump,
+    )]
+    pub user_profile: Account<'info, UserProfile>, // The user's profile
+    #[account(
+        seeds = [
+            GAME_SEED.as_bytes(),
+            game_config_owner.key().as_ref(),
+            game_config.key().as_ref(),
+        ],
+        bump = game_config.bump,
+    )]
+    pub game_config: Account<'info, GameConfig>, // The game being removed
+    pub game_config_owner: Signer<'info>,        // Owner of the game
+    pub system_program: Program<'info, System>,  // System program
 }
 

@@ -2,10 +2,10 @@ use anchor_lang::prelude::*;
 use crate::states::*;
 // use crate::errors::GameError;
 
-pub fn initialize_user_profile(ctx: Context<InitializeUserProfile>) -> Result<()> {
+pub fn initialize_user(ctx: Context<InitializeUserProfile>) -> Result<()> {
     let profile = &mut ctx.accounts.user_profile;
     profile.user = ctx.accounts.user.key();
-    profile.saved_games = Vec::new();
+    profile.game_counter = 0;
     // profile.minted_nfts = Vec::new();
     profile.bump = ctx.bumps.user_profile;
     Ok(())
