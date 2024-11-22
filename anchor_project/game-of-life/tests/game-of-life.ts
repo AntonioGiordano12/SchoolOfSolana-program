@@ -48,137 +48,6 @@ describe("Game of Life", () => {
     );
   });
 
-  describe("Game Initialization", () => {
-    it("Initializes a new game (happy path)", async () => {
-      [gameConfig1] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer()],
-        program.programId
-      );
-
-      await program.methods
-        .initialize(Buffer.from(bitmap))
-        .accounts({
-          gameConfig: gameConfig1,
-          gameOwner: user1.publicKey,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .signers([user1])
-        .rpc();
-
-      const game = await program.account.gameConfig.fetch(gameConfig1);
-      assert.ok(
-        new Uint8Array(game.aliveCells).every((value, index) => value === bitmap[index]),
-        "Bitmap should match initialized values"
-      );
-    });
-
-    it("Fails to reinitialize an existing game", async () => {
-      try {
-        await program.methods
-          .initialize(Buffer.from(bitmap))
-          .accounts({
-            gameConfig: gameConfig1,
-            gameOwner: user1.publicKey,
-            systemProgram: anchor.web3.SystemProgram.programId,
-          })
-          .signers([user1])
-          .rpc();
-        assert.fail("Expected an error when reinitializing an existing game");
-      } catch (err) {
-        assert.ok(
-          err.logs.join("").includes("already in use"),
-          "Error should indicate PDA collision"
-        );
-      }
-    });
-
-
-    it("Initializes a game with a fully filled grid (valid size)", async () => {
-
-      const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer()],
-        program.programId
-      );
-    
-      await program.methods
-        .initialize(Buffer.from(fullBitmap))
-        .accounts({
-          gameConfig,
-          gameOwner: user1.publicKey,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .signers([user1])
-        .rpc({skipPreflight: true});
-    
-      const game = await program.account.gameConfig.fetch(gameConfig);
-      assert.ok(
-        new Uint8Array(game.aliveCells).every((value, index) => value === fullBitmap[index]),
-        "Bitmap should match fully filled grid"
-      );
-    });
-
-
-    it("Fails to initialize a game with an oversized grid", async () => {
-      const oversizedBitmap = new Uint8Array(4097); // One byte too large for 64x64 grid
-      oversizedBitmap.fill(0xff);
-    
-      const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer()],
-        program.programId
-      );
-    
-      try {
-        await program.methods
-          .initialize(Buffer.from(oversizedBitmap))
-          .accounts({
-            gameConfig,
-            gameOwner: user1.publicKey,
-            systemProgram: anchor.web3.SystemProgram.programId,
-          })
-          .signers([user1])
-          .rpc();
-        assert.fail("Expected an error when initializing with oversized grid");
-      } catch (err) {
-        assert.ok(
-          err.logs.join("").includes("TooManyAliveCells"),
-          "Error should indicate grid is too large"
-        );
-      }
-    });
-
-
-    it("Fails to initialize a game with an undersized grid", async () => {
-      const undersizedBitmap = new Uint8Array(511); // One byte too small for 64x64 grid
-    
-      const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer()],
-        program.programId
-      );
-    
-      try {
-        await program.methods
-          .initialize(Buffer.from(undersizedBitmap))
-          .accounts({
-            gameConfig,
-            gameOwner: user1.publicKey,
-            systemProgram: anchor.web3.SystemProgram.programId,
-          })
-          .signers([user1])
-          .rpc();
-        assert.fail("Expected an error when initializing with undersized grid");
-      } catch (err) {
-        assert.ok(
-          err.logs.join("").includes("InvalidBitmapSize"),
-          "Error should indicate grid is too small"
-        );
-      }
-    });
-    
-    
-
-
-    
-  });
 
   describe("User Profile Management", () => {
     it("Initializes a user profile (happy path)", async () => {
@@ -194,7 +63,7 @@ describe("Game of Life", () => {
 
       const profile = await program.account.userProfile.fetch(userProfile1);
       assert.equal(profile.user.toBase58(), user1.publicKey.toBase58(), "User should match the wallet");
-      assert.equal(profile.savedGameCounter, 0, "Saved games should initially be empty");
+      assert.equal(profile.gameCounter, 0, "Saved games should initially be empty");
     });
 
     it("Fails to reinitialize an existing user profile", async () => {
@@ -217,6 +86,213 @@ describe("Game of Life", () => {
       }
     });
   });
+
+
+  describe("Game Initialization", async () => {
+
+
+    
+    it("Initializes a new game (happy path)", async () => {
+
+      const userProfileData = await program.account.userProfile.fetch(userProfile1);  
+      
+      let gameCounter = Buffer.alloc(4); // allocate 4 bytes
+      gameCounter.writeInt32LE(userProfileData.gameCounter, 0); // write the number to the buffer
+
+      [gameConfig1] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer(), gameCounter],
+        program.programId
+      );
+
+      await program.methods
+        .initialize(Buffer.from(bitmap))
+        .accounts({
+          userProfile: userProfile1,
+          gameConfig: gameConfig1,
+          gameOwner: user1.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([user1])
+        .rpc();
+
+      const game = await program.account.gameConfig.fetch(gameConfig1);
+
+      assert.ok(
+        new Uint8Array(game.aliveCells).every((value, index) => value === bitmap[index]),
+        "Bitmap should match initialized values"
+      );
+    });
+
+    it("Fails to reinitialize an existing game", async () => {
+      
+      try {
+        await program.methods
+          .initialize(Buffer.from(bitmap))
+          .accounts({
+            userProfile: userProfile1,
+            gameConfig: gameConfig1,
+            gameOwner: user1.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId,
+          })
+          .signers([user1])
+          .rpc();
+        assert.fail("Expected an error when reinitializing an existing game");
+      } catch (err) {
+        assert.ok(
+          err.logs.join("").includes("already in use"),
+          "Error should indicate PDA collision"
+        );
+      }
+    });
+
+    it("Allows a user to initialize multiple games", async () => {
+      const [userProfile] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("USER_SEED"), user1.publicKey.toBuffer()],
+        program.programId
+      );
+
+      const bitmaps = [
+        serializeBitmap([
+          [1, 1],
+          [1, 2],
+          [1, 3],
+        ]),
+        serializeBitmap([
+          [2, 2],
+          [2, 3],
+          [2, 4],
+        ]),
+      ];
+
+      const gameConfigs = [];
+
+      for (let i = 0; i < bitmaps.length; i++) {
+        const counterBuffer = Buffer.alloc(4);
+        counterBuffer.writeUInt32LE(i); // Write the counter value as 4-byte little-endian
+
+        const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
+          [
+            Buffer.from("GAME_SEED"),
+            user1.publicKey.toBuffer(),
+            counterBuffer, // Match counter
+          ],
+          program.programId
+        );
+
+        await program.methods
+          .initialize(Buffer.from(bitmaps[i]))
+          .accounts({
+            userProfile,
+            gameConfig,
+            gameOwner: user1.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId,
+          })
+          .signers([user1])
+          .rpc();
+
+        gameConfigs.push(gameConfig);
+      }
+
+      const userProfileAccount = await program.account.userProfile.fetch(userProfile);
+      assert.equal(userProfileAccount.gameCounter, gameConfigs.length, "Game counter should match number of games initialized");
+
+
+      // Assert all games initialized
+      for (let i = 0; i < gameConfigs.length; i++) {
+        const game = await program.account.gameConfig.fetch(gameConfigs[i]);
+        assert.ok(game, `Game ${i + 1} should exist`);
+        assert.equal(game.iteration, 0, `Game ${i + 1} should start at iteration 0`);
+      }
+    });
+
+
+    it("Initializes a game with a fully filled grid (valid size)", async () => {
+
+      const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer()],
+        program.programId
+      );
+
+      await program.methods
+        .initialize(Buffer.from(fullBitmap))
+        .accounts({
+          gameConfig,
+          gameOwner: user1.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([user1])
+        .rpc();
+
+      const game = await program.account.gameConfig.fetch(gameConfig);
+      assert.ok(
+        new Uint8Array(game.aliveCells).every((value, index) => value === fullBitmap[index]),
+        "Bitmap should match fully filled grid"
+      );
+    });
+
+
+    it("Fails to initialize a game with an oversized grid", async () => {
+      const oversizedBitmap = new Uint8Array(4097); // One byte too large for 64x64 grid
+      oversizedBitmap.fill(0xff);
+
+      const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer()],
+        program.programId
+      );
+
+      try {
+        await program.methods
+          .initialize(Buffer.from(oversizedBitmap))
+          .accounts({
+            gameConfig,
+            gameOwner: user1.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId,
+          })
+          .signers([user1])
+          .rpc();
+        assert.fail("Expected an error when initializing with oversized grid");
+      } catch (err) {
+        assert.ok(
+          err.logs.join("").includes("TooManyAliveCells"),
+          "Error should indicate grid is too large"
+        );
+      }
+    });
+
+
+    it("Fails to initialize a game with an undersized grid", async () => {
+      const undersizedBitmap = new Uint8Array(511); // One byte too small for 64x64 grid
+
+      const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer()],
+        program.programId
+      );
+
+      try {
+        await program.methods
+          .initialize(Buffer.from(undersizedBitmap))
+          .accounts({
+            gameConfig,
+            gameOwner: user1.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId,
+          })
+          .signers([user1])
+          .rpc();
+        assert.fail("Expected an error when initializing with undersized grid");
+      } catch (err) {
+        assert.ok(
+          err.logs.join("").includes("InvalidBitmapSize"),
+          "Error should indicate grid is too small"
+        );
+      }
+    });
+
+
+
+
+
+  });
+
 
   describe("Game Save Management", () => {
     it("Adds a game to the profile (happy path)", async () => {
@@ -245,7 +321,7 @@ describe("Game of Life", () => {
 
 
       const profile = await program.account.userProfile.fetch(userProfile1);
-      assert.equal(profile.savedGameCounter, 1, "Total games saved should increment");
+      assert.equal(profile.gameCounter, 1, "Total games saved should increment");
 
       const save = await program.account.gameSave.fetch(gameSave);
       assert.equal(save.user.toBase58(), user1.publicKey.toBase58(), "Save should reference the correct user");
@@ -290,13 +366,13 @@ async function airdrop(connection: any, address: any, amount = 1_000_000_000) {
   );
 }
 
-  /**
-   * Converts an array of cell positions into a bit-packed `Uint8Array`
-   * (where each bit represents whether a cell is alive or not).
-   * @param aliveCells Array of [row, col] positions of alive cells.
-   * @returns A `Uint8Array` of size `Math.ceil(gridSize * gridSize / 8)`.
-   * @throws If any of the cell positions are out of bounds.
-   */
+/**
+ * Converts an array of cell positions into a bit-packed `Uint8Array`
+ * (where each bit represents whether a cell is alive or not).
+ * @param aliveCells Array of [row, col] positions of alive cells.
+ * @returns A `Uint8Array` of size `Math.ceil(gridSize * gridSize / 8)`.
+ * @throws If any of the cell positions are out of bounds.
+ */
 function serializeBitmap(aliveCells: Array<[number, number]>): Uint8Array {
   const gridSize = 64;
   const bitmap = new Uint8Array((gridSize * gridSize) / 8);

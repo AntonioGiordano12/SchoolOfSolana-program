@@ -15,7 +15,7 @@ pub fn add_game(ctx: Context<AddGameToProfile>) -> Result<()> {
     game_save.bump = ctx.bumps.game_save;
 
     // Optional: Update user profile metadata if necessary
-    user_profile.saved_game_counter += 1;
+    user_profile.game_counter += 1;
 
     msg!("Derived user_profile PDA: {:?}", ctx.accounts.user_profile.key());
     msg!("Derived game_save PDA: {:?}", ctx.accounts.game_save.key());

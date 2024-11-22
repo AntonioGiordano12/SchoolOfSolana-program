@@ -11,7 +11,7 @@ pub const NFT_SEED: &str = "NFT_SEED";
 pub struct GameConfig {
     pub game_owner: Pubkey,     // Owner of the game
     pub alive_cells: [u8; 512], // Bitmap representing 64x64 grid (64 * 64 / 8 = 512 bytes) of alive cells
-    pub iteration: u64,         // Current iteration of the game
+    pub iteration: u32,         // Current iteration of the game
     pub is_public: bool,        // Whether the game is shared in the feed
     pub bump: u8,               // Bump seed for PDA
 }

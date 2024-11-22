@@ -7,8 +7,8 @@ pub fn initialize_game(
     ctx: Context<InitializeGame>,
     alive_cells: Vec<u8>, 
 ) -> Result<()> {
-    let initialized_game = &mut ctx.accounts.game_config;
-    let user_owner = &mut ctx.accounts.game_owner;
+    let game_config = &mut ctx.accounts.game_config;
+    let user_profile = &mut ctx.accounts.user_profile;
 
     // Validate alive_cells size
     require!(
@@ -16,14 +16,16 @@ pub fn initialize_game(
         GameError::TooManyAliveCells
     );
 
+    // Increment the game counter
+    // let game_id = user_profile.game_counter;
+    user_profile.game_counter += 1;
 
 
-    initialized_game.alive_cells.copy_from_slice(&alive_cells);
-
-    initialized_game.game_owner = user_owner.key();
-    initialized_game.iteration = 0;
-    initialized_game.is_public = false;
-    initialized_game.bump = ctx.bumps.game_config;
+    game_config.game_owner = user_profile.key();
+    game_config.alive_cells.copy_from_slice(&alive_cells);
+    game_config.iteration = 0;
+    game_config.is_public = true;
+    game_config.bump = ctx.bumps.game_config;
 
     
     
@@ -32,23 +34,30 @@ pub fn initialize_game(
 
 #[derive(Accounts)]
 pub struct InitializeGame<'info> {
-    #[account(mut)]
-    pub game_owner: Account<'info, UserProfile>,
-    
     #[account(
-        init,   
-        payer = game_owner.user,
+        mut,
+        seeds = [
+            USER_SEED.as_bytes(),
+            game_owner.key().as_ref(),
+        ],
+        bump = user_profile.bump
+    )]
+    pub user_profile: Account<'info, UserProfile>, // Reference to the user profile
+
+    #[account(
+        init,
+        payer = game_owner,
         space = 8 + GameConfig::LEN,
         seeds = [
             GAME_SEED.as_bytes(),
             game_owner.key().as_ref(),
-            &game_owner.game_counter.to_le_bytes(),
-            ],
-            bump)]
-    pub game_config: Account<'info, GameConfig>,
-    pub system_program: Program<'info, System>,
-
+            &user_profile.game_counter.to_le_bytes(), // Use the counter as part of the seed
+        ],
+        bump
+    )]
+    pub game_config: Account<'info, GameConfig>, // New game config
     #[account(mut)]
-    pub user: Signer<'info>,
+    pub game_owner: Signer<'info>,              // The game owner
+    pub system_program: Program<'info, System>, // System program
 }
 

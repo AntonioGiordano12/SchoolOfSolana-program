@@ -1,15 +1,15 @@
 use anchor_lang::prelude::*;
 use crate::states::*;
 
-use crate::errors::GameError;
+// use crate::errors::GameError;
 
-pub fn remove_game(ctx: Context<RemoveGameFromProfile>) -> Result<()> {
-    let user_profile = &mut ctx.accounts.user_profile;
+pub fn remove_game(_ctx: Context<RemoveGameFromProfile>) -> Result<()> {
+    // let user_profile = &mut ctx.accounts.user_profile;
     // let game_save = &mut ctx.accounts.game_save;
 
 
     // Update user profile metadata
-    user_profile.saved_game_counter = user_profile.saved_game_counter.checked_sub(1).ok_or(GameError::MinGamesReached)?;
+    // user_profile.game_counter = user_profile.game_counter.checked_sub(1).ok_or(GameError::MinGamesReached)?;
 
     Ok(())
 }
