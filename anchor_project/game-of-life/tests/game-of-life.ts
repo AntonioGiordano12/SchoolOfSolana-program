@@ -5,23 +5,37 @@ import { assert } from "chai";
 
 const USER_SEED = "USER_SEED";
 const GAME_SEED = "GAME_SEED";
-const GAME_SAVE_SEED = "GAME_SAVE_SEED";
+const STAR_SEED = "STAR_SEED";
 const FEED_SEED = "FEED_SEED";
 
-const MAX_SAVED_GAMES = 10;
+const MAX_ALIVE_CELLS = 512; // Limit for alive cells to prevent unbounded storage (64x64/8)
+
+export const GAME_ERRORS = {
+  GameAlreadySaved: "This game has already been saved.",
+  GameNotSaved: "The specified game is not saved.",
+  InvalidGrid: "Invalid grid size. The grid exceeds maximum allowed size.",
+  MinGamesReached: "Min games reached - no games was saved",
+  MaxStarsReached: "Maximum number of stars reached",
+  MinStarsReached: "Minimum number of stars reached",
+  GameIdAlreadyExists: "Game ID already in use",
+  FeedFull: "Feed is full",
+  IDTooLong: "ID too long",
+};
+
 
 describe("Game of Life", () => {
+  const program = anchor.workspace.GameOfLife as Program<GameOfLife>;
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.GameOfLife as Program<GameOfLife>;
   const user1 = anchor.web3.Keypair.generate(); // User 1 (primary)
   const user2 = anchor.web3.Keypair.generate(); // User 2 (secondary)
 
-  let userProfile1: anchor.web3.PublicKey;
-  let userProfile2: anchor.web3.PublicKey;
-  let gameConfig1: anchor.web3.PublicKey;
-  let gameConfig2: anchor.web3.PublicKey;
+  const gameId1 = "game1";
+  const gameId2 = "game name is way too loooooooooooooooooooooooooooooooooooooooooong";
+  const gameId3 = "game3 - filled grid";
+  const gameId4 = "game4 - oversized grid";
+  const gameId5 = "game5 - undersized grid";
 
   const bitmap = serializeBitmap([
     [1, 1],
@@ -32,219 +46,162 @@ describe("Game of Life", () => {
   const fullBitmap = new Uint8Array((64 * 64) / 8); // Bitmap for 64x64 grid
   fullBitmap.fill(0xff);
 
+  const [feedPda, feedBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from(FEED_SEED)], program.programId);
+
   before(async () => {
     // Airdrop for both users
     await airdrop(provider.connection, user1.publicKey);
     await airdrop(provider.connection, user2.publicKey);
 
-    // Derive PDAs for user profiles
-    [userProfile1] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from(USER_SEED), user1.publicKey.toBuffer()],
-      program.programId
-    );
-    [userProfile2] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from(USER_SEED), user2.publicKey.toBuffer()],
-      program.programId
-    );
   });
 
+  // describe("User Profile Management", () => {
+  //   it("Initialize users profile for user1", async () => {
+  //     const [userProfile, userProfileBump] = getUserProfileAddress(user1.publicKey, program.programId);
 
-  describe("User Profile Management", () => {
-    it("Initializes a user profile (happy path)", async () => {
-      await program.methods
-        .initializeUserProfile()
-        .accounts({
-          userProfile: userProfile1,
-          user: user1.publicKey,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .signers([user1])
-        .rpc();
+  //     await program.methods
+  //       .initializeUserProfile()
+  //       .accounts({
+  //         userProfile: userProfile,
+  //         user: user1.publicKey,
+  //         systemProgram: anchor.web3.SystemProgram.programId,
+  //       })
+  //       .signers([user1])
+  //       .rpc();
 
-      const profile = await program.account.userProfile.fetch(userProfile1);
-      assert.equal(profile.user.toBase58(), user1.publicKey.toBase58(), "User should match the wallet");
-      assert.equal(profile.gameCounter, 0, "Saved games should initially be empty");
-    });
+  //     await checkUserProfile(program, userProfile, user1.publicKey, 0, userProfileBump); // Validate initialized user1 profile
+  //   });
 
-    it("Fails to reinitialize an existing user profile", async () => {
-      try {
-        await program.methods
-          .initializeUserProfile()
-          .accounts({
-            userProfile: userProfile1,
-            user: user1.publicKey,
-            systemProgram: anchor.web3.SystemProgram.programId,
-          })
-          .signers([user1])
-          .rpc();
-        assert.fail("Expected an error when reinitializing an existing profile");
-      } catch (err) {
-        assert.ok(
-          err.logs.join("").includes("already in use"),
-          "Error should indicate PDA collision"
-        );
-      }
-    });
+  //   it("Fails to reinitialize an existing user profile (user1)", async () => {
+  //     const [userProfile, userProfileBump] = getUserProfileAddress(user1.publicKey, program.programId);
+
+  //     try {
+  //       await program.methods
+  //         .initializeUserProfile()
+  //         .accounts({
+  //           userProfile: userProfile,
+  //           user: user1.publicKey,
+  //           systemProgram: anchor.web3.SystemProgram.programId,
+  //         })
+  //         .signers([user1])
+  //         .rpc();
+  //       assert.fail("Expected an error when reinitializing an existing profile");
+  //     } catch (err) {
+  //       assert.ok(
+  //         err.logs.join("").includes("already in use"),
+  //         "Error should indicate PDA collision"
+  //       );
+  //     }
+  //   });
+  // });
+
+  it("Initializes the feed", async () => {
+    // Initialize the Feed PDA
+    await program.methods
+      .initializeFeed()
+      .accounts({
+        feed: feedPda,
+        payer: provider.wallet.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+
+    // Fetch the feed account
+    const feed = await program.account.feed.fetch(feedPda);
+    assert.ok(feed.games.length === 0, "Feed should start with no games");
   });
-
 
   describe("Game Initialization", async () => {
-
-
-    
-    it("Initializes a new game (happy path)", async () => {
-
-      const userProfileData = await program.account.userProfile.fetch(userProfile1);  
-      
-      let gameCounter = Buffer.alloc(4); // allocate 4 bytes
-      gameCounter.writeInt32LE(userProfileData.gameCounter, 0); // write the number to the buffer
-
-      [gameConfig1] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer(), gameCounter],
-        program.programId
-      );
-
+    it("user1 Initializes a new game", async () => {
+      const [gamePda, gameBump] = getGameAddress(user1.publicKey, gameId1, program.programId)
       await program.methods
-        .initialize(Buffer.from(bitmap))
+        .initialize(gameId1, Buffer.from(bitmap))
         .accounts({
-          userProfile: userProfile1,
-          gameConfig: gameConfig1,
+          feed: feedPda,
+          game: gamePda,
           gameOwner: user1.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([user1])
-        .rpc();
+        .rpc({ commitment: "confirmed" });
 
-      const game = await program.account.gameConfig.fetch(gameConfig1);
+      await checkGame(program, gamePda, user1.publicKey, gameId1, bitmap, 0, 0, gameBump) // Check the game
+      await isGameInFeed(program, gamePda, feedPda);
 
-      assert.ok(
-        new Uint8Array(game.aliveCells).every((value, index) => value === bitmap[index]),
-        "Bitmap should match initialized values"
-      );
+      // await checkUserProfile(program, userProfile, user1.publicKey, gameCounter + 1, userProfileBump); // Check the userProfile (gameCounter should be incremented)
     });
 
-    it("Fails to reinitialize an existing game", async () => {
-      
+    it("Fails to initialize a game with gameId that already exists", async () => {
+      const [gamePda, gameBump] = getGameAddress(user1.publicKey, gameId1, program.programId)
       try {
         await program.methods
-          .initialize(Buffer.from(bitmap))
+          .initialize(gameId1, Buffer.from(bitmap))
           .accounts({
-            userProfile: userProfile1,
-            gameConfig: gameConfig1,
+            feed: feedPda,
+            game: gamePda,
             gameOwner: user1.publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
           .signers([user1])
-          .rpc();
-        assert.fail("Expected an error when reinitializing an existing game");
+          .rpc({ commitment: "confirmed" });
+        assert.fail("Expected an error when initializing a game with a duplicate gameId");
       } catch (err) {
-        assert.ok(
-          err.logs.join("").includes("already in use"),
-          "Error should indicate PDA collision"
-        );
+        assert.isTrue(SolanaError.contains(err.logs, "already in use"), err.logs)
       }
+      await checkGame(program, gamePda, user1.publicKey, gameId1, bitmap, 0, 0, gameBump)
     });
 
-    it("Allows a user to initialize multiple games", async () => {
-      const [userProfile] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("USER_SEED"), user1.publicKey.toBuffer()],
-        program.programId
-      );
-
-      const bitmaps = [
-        serializeBitmap([
-          [1, 1],
-          [1, 2],
-          [1, 3],
-        ]),
-        serializeBitmap([
-          [2, 2],
-          [2, 3],
-          [2, 4],
-        ]),
-      ];
-
-      const gameConfigs = [];
-
-      for (let i = 0; i < bitmaps.length; i++) {
-        const counterBuffer = Buffer.alloc(4);
-        counterBuffer.writeUInt32LE(i); // Write the counter value as 4-byte little-endian
-
-        const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
-          [
-            Buffer.from("GAME_SEED"),
-            user1.publicKey.toBuffer(),
-            counterBuffer, // Match counter
-          ],
-          program.programId
-        );
-
+    it("Fails to initialize a game with gameId longer than 32 bytes", async () => {
+      const [gamePda, gameBump] = getGameAddress(user1.publicKey, gameId1, program.programId)
+      try {
         await program.methods
-          .initialize(Buffer.from(bitmaps[i]))
+          .initialize(gameId2, Buffer.from(bitmap))
           .accounts({
-            userProfile,
-            gameConfig,
+            feed: feedPda,
+            game: gamePda,
             gameOwner: user1.publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
           .signers([user1])
-          .rpc();
-
-        gameConfigs.push(gameConfig);
-      }
-
-      const userProfileAccount = await program.account.userProfile.fetch(userProfile);
-      assert.equal(userProfileAccount.gameCounter, gameConfigs.length, "Game counter should match number of games initialized");
-
-
-      // Assert all games initialized
-      for (let i = 0; i < gameConfigs.length; i++) {
-        const game = await program.account.gameConfig.fetch(gameConfigs[i]);
-        assert.ok(game, `Game ${i + 1} should exist`);
-        assert.equal(game.iteration, 0, `Game ${i + 1} should start at iteration 0`);
+          .rpc({ commitment: "confirmed" });
+        assert.fail("Expected an error when initializing a game with a gameId too long");
+      } catch (err) {
+        assert.isTrue(SolanaError.contains(err.logs, "Length of the seed is too long for address generation"), err.logs)
       }
     });
 
 
     it("Initializes a game with a fully filled grid (valid size)", async () => {
-
-      const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer()],
-        program.programId
-      );
+      const [gamePda, gameBump] = getGameAddress(user1.publicKey, gameId3, program.programId)
 
       await program.methods
-        .initialize(Buffer.from(fullBitmap))
+        .initialize(gameId3, Buffer.from(fullBitmap))
         .accounts({
-          gameConfig,
+          feed: feedPda,
+          game: gamePda,
           gameOwner: user1.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([user1])
-        .rpc();
+        .rpc({ commitment: "confirmed" });
 
-      const game = await program.account.gameConfig.fetch(gameConfig);
-      assert.ok(
-        new Uint8Array(game.aliveCells).every((value, index) => value === fullBitmap[index]),
-        "Bitmap should match fully filled grid"
-      );
+      await checkGame(program, gamePda, user1.publicKey, gameId3, fullBitmap, 0, 0, gameBump) // Check the game
+      await isGameInFeed(program, gamePda, feedPda);
     });
 
 
     it("Fails to initialize a game with an oversized grid", async () => {
-      const oversizedBitmap = new Uint8Array(4097); // One byte too large for 64x64 grid
+      const oversizedBitmap = new Uint8Array(513); // One byte too large for 64x64 grid
       oversizedBitmap.fill(0xff);
 
-      const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer()],
-        program.programId
-      );
+      const [gamePda, gameBump] = getGameAddress(user1.publicKey, gameId4, program.programId)
 
       try {
         await program.methods
-          .initialize(Buffer.from(oversizedBitmap))
+          .initialize(gameId4, Buffer.from(oversizedBitmap))
           .accounts({
-            gameConfig,
+            feed: feedPda,
+            game: gamePda,
             gameOwner: user1.publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
@@ -252,109 +209,89 @@ describe("Game of Life", () => {
           .rpc();
         assert.fail("Expected an error when initializing with oversized grid");
       } catch (err) {
-        assert.ok(
-          err.logs.join("").includes("TooManyAliveCells"),
-          "Error should indicate grid is too large"
-        );
+        assert.isTrue(SolanaError.contains(err.logs, GAME_ERRORS.InvalidGrid), err.logs)
       }
     });
-
 
     it("Fails to initialize a game with an undersized grid", async () => {
       const undersizedBitmap = new Uint8Array(511); // One byte too small for 64x64 grid
 
-      const [gameConfig] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(GAME_SEED), user1.publicKey.toBuffer()],
-        program.programId
-      );
+      const [gamePda, gameBump] = getGameAddress(user1.publicKey, gameId5, program.programId)
 
       try {
         await program.methods
-          .initialize(Buffer.from(undersizedBitmap))
+          .initialize(gameId5, Buffer.from(undersizedBitmap))
           .accounts({
-            gameConfig,
+            feed: feedPda,
+            game: gamePda,
             gameOwner: user1.publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
           .signers([user1])
           .rpc();
-        assert.fail("Expected an error when initializing with undersized grid");
+        assert.fail("Expected an error when initializing with oversized grid");
       } catch (err) {
-        assert.ok(
-          err.logs.join("").includes("InvalidBitmapSize"),
-          "Error should indicate grid is too small"
-        );
+        assert.isTrue(SolanaError.contains(err.logs, GAME_ERRORS.InvalidGrid), err.logs)
       }
     });
-
-
-
-
-
   });
 
 
   describe("Game Save Management", () => {
-    it("Adds a game to the profile (happy path)", async () => {
-      const [gameSave] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(GAME_SAVE_SEED), user1.publicKey.toBuffer()],
-        program.programId
-      );
+    it("user1 star a game", async () => {
 
-      const [userProfile1] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(USER_SEED), user1.publicKey.toBuffer()], // Match the updated program
-        program.programId
-      );
+      const [gamePda, gameBump] = getGameAddress(user1.publicKey, gameId1, program.programId)
+      const [starPda, starBump] = getStarAddress(user1.publicKey, gamePda, program.programId)
 
       await program.methods
-        .addGameToProfile()
+        .starGame()
         .accounts({
-          userProfile: userProfile1,
-          gameSave,
-          gameConfig: gameConfig1,
-          user: user1.publicKey,
-          gameConfigOwner: user1.publicKey,
+          starUser: user1.publicKey,
+          starGame: starPda,
+          game: gamePda,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([user1])
         .rpc();
 
-
-      const profile = await program.account.userProfile.fetch(userProfile1);
-      assert.equal(profile.gameCounter, 1, "Total games saved should increment");
-
-      const save = await program.account.gameSave.fetch(gameSave);
-      assert.equal(save.user.toBase58(), user1.publicKey.toBase58(), "Save should reference the correct user");
-      assert.equal(save.game.toBase58(), gameConfig1.toBase58(), "Save should reference the correct game");
+      await checkStar(program, starPda, user1.publicKey, gamePda, starBump)
+      await checkGame(program, gamePda, user1.publicKey, gameId1, bitmap, 0, 1, gameBump) // game.stars incremented
     });
 
-    it("Fails to add a duplicate game to the profile", async () => {
-      const [gameSave] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from(GAME_SAVE_SEED), user1.publicKey.toBuffer()],
-        program.programId
-      );
+    it("Fails to star again the same game", async () => {
+
+      const [gamePda, gameBump] = getGameAddress(user1.publicKey, gameId1, program.programId)
+      const [starPda, starBump] = getStarAddress(user1.publicKey, gamePda, program.programId)
 
       try {
         await program.methods
-          .addGameToProfile()
+          .starGame()
           .accounts({
-            userProfile1,
-            gameSave,
-            gameConfig1,
-            user: user1.publicKey,
-            gameConfigOwner: user1.publicKey,
+            starUser: user1.publicKey,
+            starGame: starPda,
+            game: gamePda,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
           .signers([user1])
           .rpc();
         assert.fail("Expected an error for duplicate game");
       } catch (err) {
-        assert.ok(
-          err.logs.join("").includes("already in use"),
-          `Error should indicate PDA collision: ${err.logs}`
-        );
+        assert.isTrue(SolanaError.contains(err.logs, "already in use"), err.logs)
       }
     });
+
+    it("user1 remove a starred game", async () => {
+      const [gamePda, gameBump] = getGameAddress(user1.publicKey, gameId1, program.programId)
+      const [starPda, starBump] = getStarAddress(user1.publicKey, gamePda, program.programId)
+
+      await program.methods.unstarGame().accounts({
+        starUser: user1.publicKey,
+        starGame: starPda,
+        game: gamePda,
+      })
+      .signers([user1]).rpc({ commitment: "confirmed" })
+      await checkGame(program, gamePda, user1.publicKey, gameId1, bitmap, 0, 0, gameBump) // game.stars decremented
+    })
   });
 });
 
@@ -365,6 +302,162 @@ async function airdrop(connection: any, address: any, amount = 1_000_000_000) {
     "confirmed"
   );
 }
+
+// async function checkUserProfile(
+//   program: anchor.Program<GameOfLife>,
+//   userProfile: anchor.web3.PublicKey,
+//   expectedUser?: anchor.web3.PublicKey,
+//   expectedGameCounter?: number,
+//   expectedBump?: number
+// ) {
+//   const profile = await program.account.userProfile.fetch(userProfile);
+
+//   if (expectedUser) {
+//     assert.strictEqual(profile.user.toBase58(), expectedUser.toBase58(), "User should match the expected wallet");
+//   }
+//   if (expectedGameCounter !== undefined) {
+//     assert.strictEqual(profile.gameCounter, expectedGameCounter, "Game counter should match");
+//   }
+//   if (expectedBump !== undefined) {
+//     assert.strictEqual(profile.bump, expectedBump, "Bump should match");
+//   }
+// }
+
+
+
+function stringToUtf8ByteArray(inputString: string): Uint8Array {
+  const encoder = new TextEncoder();
+  return encoder.encode(inputString);
+}
+
+// Function to pad a byte array with zeroes to a specified length
+function padByteArrayWithZeroes(byteArray: Uint8Array, length: number): Uint8Array {
+  if (byteArray.length >= length) {
+    return byteArray;
+  }
+
+  const paddedArray = new Uint8Array(length);
+  paddedArray.set(byteArray, 0);
+  return paddedArray;
+}
+
+async function checkGame(
+  program: anchor.Program<GameOfLife>,
+  gameKey: anchor.web3.PublicKey,
+  expectedOwner?: anchor.web3.PublicKey,
+  expectedGameId?: string,
+  expectedAliveCells?: Uint8Array,
+  expectedIteration?: number,
+  expectedStars?: number,
+  expectedBump?: number
+) {
+  const game = await program.account.game.fetch(gameKey);
+  if (expectedOwner) {
+    assert.strictEqual(game.gameAuthor.toBase58(), expectedOwner.toBase58(), "Game owner should match the expected owner");
+  }
+  if (expectedGameId) {
+    const utf8ByteArray_id = stringToUtf8ByteArray(expectedGameId);
+    const paddedByteArray_id = padByteArrayWithZeroes(utf8ByteArray_id, 32);
+    assert.strictEqual(game.gameId.toString(), paddedByteArray_id.toString(), "Game ID should match the expected ID");
+  }
+  if (expectedAliveCells) {
+    assert.deepStrictEqual(
+      new Uint8Array(game.aliveCells),
+      expectedAliveCells,
+      "Alive cells bitmap should match the expected bitmap"
+    );
+  }
+  if (expectedIteration !== undefined) {
+    assert.strictEqual(game.iteration.toNumber(), expectedIteration, "Iteration should match the expected value");
+  }
+  if (expectedStars !== undefined) {
+    assert.strictEqual(game.stars.toNumber(), expectedStars, "Stars should match the expected count");
+  }
+  if (expectedBump !== undefined) {
+    assert.strictEqual(game.bump, expectedBump, "Bump should match");
+  }
+}
+
+function validateBitmapSize(bitmap: Uint8Array, maxSize: number) {
+  if (bitmap.length > maxSize) {
+    throw new Error(`Bitmap size ${bitmap.length} exceeds maximum allowed size of ${maxSize}`);
+  }
+}
+
+
+async function checkStar(
+  program: anchor.Program<GameOfLife>,
+  starKey: anchor.web3.PublicKey,
+  expectedStarUser?: anchor.web3.PublicKey,
+  expectedGame?: anchor.web3.PublicKey,
+  expectedBump?: number
+) {
+  const star = await program.account.star.fetch(starKey);
+  if (expectedStarUser) {
+    assert.strictEqual(star.starUser.toString, expectedStarUser.toString, "Star user should match the expected user");
+  }
+  if (expectedGame) {
+    assert.strictEqual(star.game.toString, expectedGame.toString, "Game should match the expected game");
+  }
+  if (expectedBump !== undefined) {
+    assert.strictEqual(star.bump, expectedBump, "Bump should match");
+  }
+}
+
+async function isGameInFeed(program, gamePda, feedPda) {
+  const feed = await program.account.feed.fetch(feedPda);
+  feed.games.forEach(game => {
+    if (game.equals(gamePda)) {
+      assert.ok(true, "Game should be in the feed");
+    }
+  });
+}
+
+function getUserProfileAddress(userPublicKey, programId) {
+  return anchor.web3.PublicKey.findProgramAddressSync(
+    [
+      anchor.utils.bytes.utf8.encode(USER_SEED),
+      userPublicKey.toBuffer()
+    ],
+    programId
+  );
+}
+
+function getGameAddress(ownerKey, gameId, programId) {
+  const paddedGameId = new Uint8Array(32);
+  const encodedGameId = anchor.utils.bytes.utf8.encode(gameId);
+  paddedGameId.set(encodedGameId.slice(0, Math.min(encodedGameId.length, 32)));
+  const addr = anchor.web3.PublicKey.findProgramAddressSync(
+    [
+      anchor.utils.bytes.utf8.encode(GAME_SEED),
+      ownerKey.toBuffer(),
+      anchor.utils.bytes.utf8.encode(gameId),
+    ],
+    programId
+  );
+  return addr;
+}
+
+function getStarAddress(userPublicKey: anchor.web3.PublicKey, gamePublicKey: anchor.web3.PublicKey, programId: anchor.web3.PublicKey) {
+  return anchor.web3.PublicKey.findProgramAddressSync(
+    [
+      anchor.utils.bytes.utf8.encode(STAR_SEED),
+      userPublicKey.toBuffer(),
+      gamePublicKey.toBuffer(),
+    ],
+    programId
+  );
+}
+
+class SolanaError {
+  static contains(logs, error): boolean {
+    if (!logs) return false;
+    return logs.some(log => log.includes(error));
+  }
+}
+
+
+
 
 /**
  * Converts an array of cell positions into a bit-packed `Uint8Array`

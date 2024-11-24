@@ -11,20 +11,24 @@ declare_id!("2f3VX8BDhBi88secSvgXYnorQcBdyG2ZFwKWcxmMcbAv");
 pub mod game_of_life {
     use super::*;
 
-    pub fn initialize(ctx: Context<InitializeGame>, alive_cells: Vec<u8>) -> Result<()> {
-        instructions::initialize_game(ctx, alive_cells)
+    pub fn initialize(ctx: Context<InitializeGame>, game_id: String, alive_cells: Vec<u8>) -> Result<()> {
+        initialize_game(ctx, game_id, alive_cells)
     }
 
-    pub fn initialize_user_profile(ctx: Context<InitializeUserProfile>) -> Result<()> {
-        initialize_user(ctx)
+    pub fn initialize_feed(ctx: Context<InitializeFeed>) -> Result<()> {
+        instructions::initialize_feed(ctx)
     }
 
-    pub fn add_game_to_profile(ctx: Context<AddGameToProfile>) -> Result<()> {
-        add_game(ctx)
+    // pub fn initialize_user_profile(ctx: Context<InitializeUserProfile>) -> Result<()> {
+    //     initialize_user(ctx)
+    // }
+
+    pub fn star_game(ctx: Context<StarGameContext>) -> Result<()> {
+        instructions::star_game(ctx)
     }
 
-    pub fn remove_game_from_profile(ctx: Context<RemoveGameFromProfile>) -> Result<()> {
-        remove_game(ctx)
+    pub fn unstar_game(ctx: Context<RemoveStarredGame>) -> Result<()> {
+        instructions::unstar_game(ctx)
     }
 
 }

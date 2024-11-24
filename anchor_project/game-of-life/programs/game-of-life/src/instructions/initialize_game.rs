@@ -1,63 +1,70 @@
-use anchor_lang::prelude::*;
 use crate::states::*;
+use anchor_lang::prelude::*;
 
 use crate::errors::GameError;
 
 pub fn initialize_game(
     ctx: Context<InitializeGame>,
-    alive_cells: Vec<u8>, 
+    game_id: String,
+    alive_cells: Vec<u8>,
 ) -> Result<()> {
-    let game_config = &mut ctx.accounts.game_config;
-    let user_profile = &mut ctx.accounts.user_profile;
+    let game = &mut ctx.accounts.game;
+    let feed = &mut ctx.accounts.feed;
 
-    // Validate alive_cells size
     require!(
-        alive_cells.len() <= GameConfig::MAX_ALIVE_CELLS,
-        GameError::TooManyAliveCells
+        game_id.as_bytes().len() <= ID_LENGTH,
+        GameError::IDTooLong
     );
 
-    // Increment the game counter
-    // let game_id = user_profile.game_counter;
-    user_profile.game_counter += 1;
+    require!(
+        alive_cells.len() <= Game::MAX_ALIVE_CELLS && alive_cells.len() >= Game::MAX_ALIVE_CELLS,
+        GameError::InvalidGrid
+    );
 
+    let mut game_id_data: [u8; 32] = [0u8; ID_LENGTH];
+    game_id_data[..game_id.as_bytes().len()].copy_from_slice(game_id.as_bytes());
+    game.game_id = game_id_data;
 
-    game_config.game_owner = user_profile.key();
-    game_config.alive_cells.copy_from_slice(&alive_cells);
-    game_config.iteration = 0;
-    game_config.is_public = true;
-    game_config.bump = ctx.bumps.game_config;
+    // Validate alive_cells size
 
-    
-    
+    game.id_length = game_id.len() as u8;
+    game.game_author = ctx.accounts.game_owner.key();
+    game.alive_cells.copy_from_slice(&alive_cells);
+    game.iteration = 0;
+    game.stars = 0;
+    game.bump = ctx.bumps.game;
+
+    require!(feed.games.len() < Feed::MAX_GAMES, GameError::FeedFull);
+
+    feed.games.push(game.key());
+
     Ok(())
 }
 
 #[derive(Accounts)]
+#[instruction(game_id: String)]
 pub struct InitializeGame<'info> {
+    #[account(mut)]
+    pub game_owner: Signer<'info>, // The game owner
+
     #[account(
         mut,
-        seeds = [
-            USER_SEED.as_bytes(),
-            game_owner.key().as_ref(),
-        ],
-        bump = user_profile.bump
+        seeds = [FEED_SEED.as_bytes()],
+        bump = feed.bump,
     )]
-    pub user_profile: Account<'info, UserProfile>, // Reference to the user profile
+    pub feed: Account<'info, Feed>, // Global feed account
 
     #[account(
         init,
         payer = game_owner,
-        space = 8 + GameConfig::LEN,
+        space = 8 + Game::LEN,
         seeds = [
             GAME_SEED.as_bytes(),
             game_owner.key().as_ref(),
-            &user_profile.game_counter.to_le_bytes(), // Use the counter as part of the seed
+            game_id.as_bytes(),
         ],
         bump
     )]
-    pub game_config: Account<'info, GameConfig>, // New game config
-    #[account(mut)]
-    pub game_owner: Signer<'info>,              // The game owner
+    pub game: Account<'info, Game>, // New game config
     pub system_program: Program<'info, System>, // System program
 }
-

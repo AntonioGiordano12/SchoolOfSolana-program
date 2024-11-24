@@ -2,15 +2,20 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum GameError {
-    #[msg("Too many saved games.")]
-    TooManySavedGames,
+    #[msg("Cannot initialize,ID too long")]
+    IDTooLong,
     #[msg("This game has already been saved.")]
     GameAlreadySaved,
     #[msg("The specified game is not saved.")]
     GameNotSaved,
-    #[msg("Too many alive cells")]
-    TooManyAliveCells,
+    #[msg("Invalid grid size. The grid exceeds maximum allowed size.")]
+    InvalidGrid,
     #[msg("Min games reached - no games was saved")]
-    MinGamesReached
+    MinGamesReached,
+    #[msg("Maximum number of stars reached")]
+    MaxStarsReached,
+    #[msg("Minimum number of stars reached")]
+    MinStarsReached,
+    #[msg("Feed is full")]
+    FeedFull,
 }
-
