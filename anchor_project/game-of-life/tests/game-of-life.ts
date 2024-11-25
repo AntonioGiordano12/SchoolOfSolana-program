@@ -20,6 +20,7 @@ export const GAME_ERRORS = {
   GameIdAlreadyExists: "Game ID already in use",
   FeedFull: "Feed is full",
   IDTooLong: "ID too long",
+  InvalidAuthority: "Invalid Authority for the Feed",
 };
 
 
@@ -47,6 +48,7 @@ describe("Game of Life", () => {
   fullBitmap.fill(0xff);
 
   const [feedPda, feedBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from(FEED_SEED)], program.programId);
+  const [feedAuthority, feedAuthorityBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("feed_authority")], program.programId);
 
   before(async () => {
     // Airdrop for both users
@@ -94,21 +96,67 @@ describe("Game of Life", () => {
   //     }
   //   });
   // });
+  describe("Feed Initialization", async () => {
+    it("Cannot Initializes the feed with wrong authority", async () => {
+      try {
+        // Attempt to initialize the feed with an incorrect authority
+        await program.methods
+          .initializeFeed()
+          .accounts({
+            feed: feedPda,                  // Valid feed PDA
+            feedAuthority: user1.publicKey, // Incorrect authority
+            payer: user1.publicKey,         // Valid payer
+            systemProgram: anchor.web3.SystemProgram.programId,
+          })
+          .signers([user1]) // Signing as user1
+          .rpc();
 
-  it("Initializes the feed", async () => {
-    // Initialize the Feed PDA
-    await program.methods
-      .initializeFeed()
-      .accounts({
-        feed: feedPda,
-        payer: provider.wallet.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .rpc();
+        // This should not succeed
+        assert.fail("Expected an error when initializing the feed with the wrong authority");
+      } catch (err) {
+        assert.isTrue(SolanaError.contains(err.logs, "A seeds constraint was violated"),
+          "Error should indicate invalid authority"
+        );
+      }
+    });
 
-    // Fetch the feed account
-    const feed = await program.account.feed.fetch(feedPda);
-    assert.ok(feed.games.length === 0, "Feed should start with no games");
+    it("Initializes the feed", async () => {
+      // Initialize the Feed PDA
+      await program.methods
+        .initializeFeed()
+        .accounts({
+          feed: feedPda,
+          feed_authority: feedAuthority,
+          payer: provider.wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .rpc();
+
+      // Fetch the feed account
+      const feed = await program.account.feed.fetch(feedPda);
+      assert.ok(feed.games.length === 0, "Feed should start with no games");
+    });
+
+    it("Cannot Initializes the feed twice", async () => {
+      try {
+        // Initialize the Feed PDA
+        await program.methods
+          .initializeFeed()
+          .accounts({
+            feed: feedPda,
+            feed_authority: feedAuthority,
+            payer: provider.wallet.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId,
+          })
+          .rpc();
+        assert.fail("Expected an error when initializing the feed again");
+      } catch (err) {
+        assert.isTrue(SolanaError.contains(err.logs, "already in use"), err.logs)
+      }
+      // Fetch the feed account - feed should still be empty
+      const feed = await program.account.feed.fetch(feedPda);
+      assert.ok(feed.games.length === 0, "Feed should start with no games");
+    });
   });
 
   describe("Game Initialization", async () => {
@@ -289,7 +337,7 @@ describe("Game of Life", () => {
         starGame: starPda,
         game: gamePda,
       })
-      .signers([user1]).rpc({ commitment: "confirmed" })
+        .signers([user1]).rpc({ commitment: "confirmed" })
       await checkGame(program, gamePda, user1.publicKey, gameId1, bitmap, 0, 0, gameBump) // game.stars decremented
     })
   });

@@ -18,4 +18,6 @@ pub enum GameError {
     MinStarsReached,
     #[msg("Feed is full")]
     FeedFull,
+    #[msg("Invalid Authority for the Feed")]
+    InvalidAuthority
 }

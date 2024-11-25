@@ -5,7 +5,7 @@ pub mod errors;
 pub mod instructions;
 pub mod states;
 
-declare_id!("2f3VX8BDhBi88secSvgXYnorQcBdyG2ZFwKWcxmMcbAv");
+declare_id!("Ge1ccFAwTuKgMY3AYpa9QsU5xCWce9iRiGiSaFa6NL1j");
 
 #[program]
 pub mod game_of_life {
