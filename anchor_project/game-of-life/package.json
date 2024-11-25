@@ -2,13 +2,11 @@
   "license": "ISC",
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
-    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
-    "deploy": "anchor deploy",
-    "initialize-feed": "ts-node ./migrations/deploy.ts",
-    "deploy-and-init": "npm run deploy && npm run initialize-feed"
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.30.1"
+    "@coral-xyz/anchor": "^0.30.1",
+    "anchor": "^1.4.1"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",
