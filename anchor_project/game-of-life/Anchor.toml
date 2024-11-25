@@ -8,7 +8,7 @@ skip-lint = false
 game_of_life = "Ge1ccFAwTuKgMY3AYpa9QsU5xCWce9iRiGiSaFa6NL1j"
 
 [programs.localnet]
-game_of_life = "2GkfH1VVRkwmqGLiCeWwM31rvRCsJtVkeFJyrzM8cQjB"
+game_of_life = "Ge1ccFAwTuKgMY3AYpa9QsU5xCWce9iRiGiSaFa6NL1j"
 
 [registry]
 url = "https://api.apr.dev"
