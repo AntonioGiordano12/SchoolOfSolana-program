@@ -2,7 +2,10 @@
   "license": "ISC",
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
-    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
+    "deploy": "anchor deploy",
+    "initialize-feed": "ts-node ./migrations/deploy.ts",
+    "deploy-and-init": "npm run deploy && npm run initialize-feed"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
