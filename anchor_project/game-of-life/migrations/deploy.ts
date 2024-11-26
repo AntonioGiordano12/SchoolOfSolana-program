@@ -30,7 +30,7 @@ module.exports = async function (provider) {
       try {
         const tx = await program.methods
           .initializeFeed()
-          .accountsStrict({
+          .accounts({
             feed: feedPda,
             feedAuthority: feedAuthority,
             payer: provider.wallet.publicKey,

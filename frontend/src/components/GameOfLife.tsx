@@ -34,31 +34,48 @@ function serializeBitmap(aliveCells: Array<[number, number]>): Uint8Array {
     return bitmap;
 }
 
+
 export const GameOfLife: FC = () => {
     const ourWallet = useWallet();
     const { connection } = useConnection();
-    const [gameName, setGameName] = useState('');
-    const [grid, setGrid] = useState(() => Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(false)));
-
-
+    
     const getProvider = () => {
         const provider = new AnchorProvider(connection, ourWallet, AnchorProvider.defaultOptions())
         setProvider(provider)
         return provider
     };
+    
+    const anchProvider = getProvider();
+    const program = new Program<GameOfLifePda>(idl_object, anchProvider);
+        
+    const [feedPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from(FEED_SEED)],
+        program.programId
+    );
 
+    const getFeedData = async () => {
+        const feedAccount = await connection.getAccountInfo(feedPda);
+        return feedAccount;
+    }
+
+
+    const [gameName, setGameName] = useState('');
+    const [grid, setGrid] = useState(() => Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(false)));
+
+    
+
+    
     const handleCellClick = (row: number, col: number) => {
         const newGrid = grid.map((rowArray, rowIndex) =>
             rowArray.map((cell, colIndex) =>
                 rowIndex === row && colIndex === col ? !cell : cell
-            )
-        );
-        setGrid(newGrid);
-    };
+    )
+);
+setGrid(newGrid);
+};
 
-    const createGame = async () => {
-        const anchProvider = getProvider();
-        const program = new Program<GameOfLifePda>(idl_object, anchProvider);
+const createGame = async () => {
+        console.log("feed:", await getFeedData());
         console.log("program", program.programId.toString());
 
         const [feedPda] = PublicKey.findProgramAddressSync(
