@@ -1,7 +1,7 @@
 {
   "address": "Ge1ccFAwTuKgMY3AYpa9QsU5xCWce9iRiGiSaFa6NL1j",
   "metadata": {
-    "name": "game_of_life_pda",
+    "name": "game_of_life",
     "version": "0.1.0",
     "spec": "0.1.0",
     "description": "Created with Anchor"

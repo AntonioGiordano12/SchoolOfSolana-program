@@ -6,16 +6,16 @@ import { FC, useCallback, useState } from 'react';
 import { notify } from "../utils/notifications";
 
 import { Program, AnchorProvider, web3, utils, BN, setProvider } from "@coral-xyz/anchor"
-import idl from "./game_of_life_pda.json"
-import { GameOfLifePda } from './game_of_life_pda';
+import idl from "./game_of_life.json"
+import { GameOfLife } from './game_of_life';
 import { PublicKey } from '@solana/web3.js';
+
+import { GAME_SEED } from '../constants';
 
 const idl_string = JSON.stringify(idl);
 const idl_object = JSON.parse(idl_string);
 const programID = new PublicKey(idl.address)
 
-const FEED_SEED = "FEED_SEED";
-const GAME_SEED = "GAME_SEED";
 
 const GRID_SIZE = 64; // 64x64 grid
 const CELL_SIZE = 10; // Smaller cell size for the larger grid
@@ -35,7 +35,7 @@ function serializeBitmap(aliveCells: Array<[number, number]>): Uint8Array {
 }
 
 
-export const GameOfLife: FC = () => {
+export const CreateGameOfLife: FC = () => {
     const ourWallet = useWallet();
     const { connection } = useConnection();
     
@@ -46,24 +46,10 @@ export const GameOfLife: FC = () => {
     };
     
     const anchProvider = getProvider();
-    const program = new Program<GameOfLifePda>(idl_object, anchProvider);
-        
-    const [feedPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from(FEED_SEED)],
-        program.programId
-    );
-
-    const getFeedData = async () => {
-        const feedAccount = await connection.getAccountInfo(feedPda);
-        return feedAccount;
-    }
-
+    const program = new Program<GameOfLife>(idl_object, anchProvider);
 
     const [gameName, setGameName] = useState('');
     const [grid, setGrid] = useState(() => Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(false)));
-
-    
-
     
     const handleCellClick = (row: number, col: number) => {
         const newGrid = grid.map((rowArray, rowIndex) =>
@@ -75,17 +61,7 @@ setGrid(newGrid);
 };
 
 const createGame = async () => {
-        console.log("feed:", await getFeedData());
-        console.log("program", program.programId.toString());
-
-        const [feedPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from(FEED_SEED)],
-            program.programId
-        );
-
         const [gamePda, gameBump] = getGameAddress(anchProvider.publicKey, gameName, program.programId)
-
-        console.log("Creating game with PDA:", gamePda.toString());
 
         if (!gameName.trim()) {
             notify({ type: 'error', message: 'Please enter a game name!' });
@@ -108,17 +84,15 @@ const createGame = async () => {
 
         try {
             const bitmap = Buffer.from(serializeBitmap(aliveCells));
+            console.log(anchProvider.publicKey.toString())
             const tx = await program.methods
                 .initialize(gameName, bitmap)
                 .accounts({
                     gameOwner: anchProvider.publicKey,
-                    feed: feedPda,
-                    game: gamePda,
-                    systemProgram: web3.SystemProgram.programId,
                 })
                 .rpc();
 
-            console.log("Transaction signature:", tx);
+            console.log("Game created! - Transaction signature:", tx);
         } catch (error) {
             console.error("Error creating game:", error);
         }

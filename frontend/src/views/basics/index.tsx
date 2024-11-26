@@ -1,6 +1,6 @@
 
 import { FC } from "react";
-import { GameOfLife } from '../../components/GameOfLife';
+import { CreateGameOfLife } from '../../components/GameOfLife';
 
 export const BasicsView: FC = ({ }) => {
 
@@ -12,7 +12,7 @@ export const BasicsView: FC = ({ }) => {
         </h1>
         {/* CONTENT GOES HERE */}
         <div className="text-center">
-          <GameOfLife />
+          <CreateGameOfLife />
         </div>
       </div>
     </div>
