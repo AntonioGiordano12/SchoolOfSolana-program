@@ -1,3 +1,11 @@
+# Game of Life - Solana Project
+
+The information about the project can be found in:
+- [`anchor_project/README.md`](anchor_project/README.md) for the Anchor program deployed on the devnet
+- [`frontend/README.md`](frontend/README.md) for the frontend of the app
+
+---
+
 [![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/wFAkMYEB)
 ![School of Solana](https://github.com/Ackee-Blockchain/school-of-solana/blob/master/.banner/banner.png?raw=true)
 
