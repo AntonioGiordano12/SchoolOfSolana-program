@@ -2,6 +2,25 @@
 
 A Next.js-based frontend for the Game of Life Solana program, built using the Solana dApp Scaffold. This frontend provides an interactive interface for users to create, view, and interact with Game of Life instances on the Solana blockchain.
 
+## Quick Start 🚀
+
+1. Install dependencies:
+```bash
+cd frontend
+npm install
+```
+
+2. Start the development server:
+```bash
+npm run dev
+```
+
+3. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+💡 **Note**: This frontend connects to the Game of Life program on Devnet. For program details, see [anchor_project/README.md](../anchor_project/README.md).
+
+For detailed setup and configuration, see [Local Development Setup](#local-development-setup) below.
+
 ## Features
 
 - **Interactive Game Creation**: Create new Game of Life instances with custom initial states
@@ -15,21 +34,18 @@ A Next.js-based frontend for the Game of Life Solana program, built using the So
 - Node.js 14+ 
 - NPM or Yarn
 - A Solana wallet (Phantom, Solflare, etc.)
+- Solana program deployed and initialized on devnet
 
 ## Local Development Setup
 
 1. Install dependencies:
 ```bash
 npm install
-# or
-yarn install
 ```
 
 2. Run the development server:
 ```bash
 npm run dev
-# or
-yarn dev
 ```
 
 3. Open [http://localhost:3000](http://localhost:3000) with your browser
@@ -46,10 +62,9 @@ The frontend is organized as follows:
 
 ## Connecting to the Program
 
-The frontend connects to the Game of Life Solana program deployed at:
-`Ge1ccFAwTuKgMY3AYpa9QsU5xCWce9iRiGiSaFa6NL1j`
-
-Make sure your wallet is connected to the Devnet network to interact with the program.
+The frontend interacts with the Game of Life program on Devnet:
+- Program ID: `Ge1ccFAwTuKgMY3AYpa9QsU5xCWce9iRiGiSaFa6NL1j`
+- Network: Devnet (make sure your wallet is connected to Devnet)
 
 ## User Interface
 
@@ -77,4 +92,3 @@ Built with:
 - Add game statistics and analytics
 - Propose initial config or patterns for the Game of Life
 - Deploy the frontend to a production environment
-
