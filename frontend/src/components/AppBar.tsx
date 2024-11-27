@@ -16,7 +16,6 @@ export const AppBar: React.FC = () => {
   const [isNavOpen, setIsNavOpen] = useState(false);
   const navigation = [
     { name: "Home", href: "/" },
-    { name: "Game", href: "/basics" },
     { name: "Gallery", href: "/gallery" },
   ];
 

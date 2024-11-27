@@ -6,6 +6,7 @@ import { GameOfLife } from './game_of_life';
 import idl from './game_of_life.json';
 import { notify } from "../utils/notifications";
 import { GAME_SEED } from '../constants';
+import { GamePlayer } from './GamePlayer';
 
 const idl_string = JSON.stringify(idl);
 const idl_object = JSON.parse(idl_string);
@@ -17,13 +18,15 @@ const CELL_SIZE = 10;
 
 interface GameCreatorProps {
     onGameCreated: () => void;
+    onExit?: () => void;
 }
 
-export const GameCreator: FC<GameCreatorProps> = ({ onGameCreated }) => {
+export const GameCreator: FC<GameCreatorProps> = ({ onGameCreated, onExit }) => {
     const ourWallet = useWallet();
     const { connection } = useConnection();
     const [gameName, setGameName] = useState('');
-    const [grid, setGrid] = useState(() => Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(false)));
+    const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+    const [grid, setGrid] = useState<boolean[][]>(() => Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(false)));
 
     const getProvider = () => {
         const provider = new AnchorProvider(connection, ourWallet, AnchorProvider.defaultOptions())
@@ -32,12 +35,19 @@ export const GameCreator: FC<GameCreatorProps> = ({ onGameCreated }) => {
     };
 
     const handleCellClick = (row: number, col: number) => {
-        const newGrid = grid.map((rowArray, rowIndex) =>
-            rowArray.map((cell, colIndex) =>
-                rowIndex === row && colIndex === col ? !cell : cell
-            )
-        );
-        setGrid(newGrid);
+        if (mode === 'edit') {
+            const newGrid = grid.map(row => [...row]);
+            newGrid[row][col] = !newGrid[row][col];
+            setGrid(newGrid);
+        }
+    };
+
+    const togglePreview = () => {
+        if (mode === 'edit') {
+            setMode('preview');
+        } else {
+            setMode('edit');
+        }
     };
 
     const serializeBitmap = (aliveCells: Array<[number, number]>): Uint8Array => {
@@ -107,8 +117,74 @@ export const GameCreator: FC<GameCreatorProps> = ({ onGameCreated }) => {
         }
     };
 
+    if (mode === 'preview') {
+        return (
+            <div className="container mx-auto px-4 py-8">
+                <div className="flex justify-between items-center w-full mb-4">
+                    <h2 className="text-xl font-bold text-white">Preview Mode</h2>
+                    <div className="space-x-4">
+                        <button
+                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            onClick={togglePreview}
+                        >
+                            Back to Edit
+                        </button>
+                        <button
+                            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                            onClick={createGame}
+                        >
+                            Save Game
+                        </button>
+                    </div>
+                </div>
+                <GamePlayer 
+                    gameData={{
+                        gameId: gameName || 'Preview',
+                        gameAuthor: ourWallet.publicKey,
+                        aliveCells: grid,
+                        stars: 0,
+                        pubkey: ourWallet.publicKey,
+                    }}
+                    previewMode={true}
+                />
+            </div>
+        );
+    }
+
     return (
-        <div className="flex flex-col items-center">
+        <div className="container mx-auto px-4 py-8">
+            <div className="flex justify-between items-center w-full mb-4">
+                <input
+                    type="text"
+                    maxLength={32}
+                    value={gameName}
+                    onChange={(e) => setGameName(e.target.value)}
+                    placeholder="Enter game name (max 32 characters)"
+                    className="px-4 py-2 border rounded text-black"
+                />
+                <div className="space-x-4">
+                    <button
+                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                        onClick={togglePreview}
+                    >
+                        Preview
+                    </button>
+                    <button
+                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                        onClick={createGame}
+                    >
+                        Save Game
+                    </button>
+                    {onExit && (
+                        <button
+                            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                            onClick={onExit}
+                        >
+                            Exit
+                        </button>
+                    )}
+                </div>
+            </div>
             <div className="border border-gray-300 rounded-lg p-2 overflow-auto">
                 <div className="grid" style={{
                     display: 'grid',
@@ -132,28 +208,6 @@ export const GameCreator: FC<GameCreatorProps> = ({ onGameCreated }) => {
                         ))
                     ))}
                 </div>
-            </div>
-            <div className="flex flex-col items-center gap-4 mt-4 w-96">
-                <input
-                    type="text"
-                    maxLength={32}
-                    value={gameName}
-                    onChange={(e) => setGameName(e.target.value)}
-                    placeholder="Enter game name (max 32 characters)"
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-black"
-                />
-                <button
-                    className="group w-full btn animate-pulse bg-gradient-to-br from-indigo-500 to-fuchsia-500 hover:from-white hover:to-purple-300 text-black"
-                    onClick={createGame}
-                    disabled={!ourWallet.connected}
-                >
-                    <div className="hidden group-disabled:block">
-                        Wallet not connected
-                    </div>
-                    <span className="block group-disabled:hidden">
-                        Save Game
-                    </span>
-                </button>
             </div>
         </div>
     );

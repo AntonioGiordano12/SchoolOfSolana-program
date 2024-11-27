@@ -25,10 +25,11 @@ interface GameData {
 
 interface GamePlayerProps {
     gameData: GameData;
-    onExit: () => void;
+    onExit?: () => void;
+    previewMode?: boolean;
 }
 
-export const GamePlayer: FC<GamePlayerProps> = ({ gameData, onExit }) => {
+export const GamePlayer: FC<GamePlayerProps> = ({ gameData, onExit, previewMode = false }) => {
     const ourWallet = useWallet();
     const { connection } = useConnection();
     const [grid, setGrid] = useState(() => gameData.aliveCells);
@@ -230,19 +231,46 @@ export const GamePlayer: FC<GamePlayerProps> = ({ gameData, onExit }) => {
         <div className="flex flex-col items-center">
             <div className="flex justify-between items-center w-full mb-4">
                 <h2 className="text-xl font-bold text-white">{gameData.gameId}</h2>
-                <div className="space-x-4">
+                <div className="space-x-6">
+                    <button
+                        className="px-4 py-2 bg-gray-200 rounded-lg text-black"
+                        onClick={() => setCurrentStep(step => Math.max(0, step - 1))}
+                        disabled={currentStep === 0}
+                    >
+                        ←
+                    </button>
+                    <span className="ml-2">
+                        Generation: {currentStep}
+                    </span>
+                    <button
+                        className="px-4 py-2 bg-gray-200 rounded-lg text-black"
+                        onClick={() => setCurrentStep(step => Math.min(gameHistory.length - 1, step + 1))}
+                        disabled={currentStep === gameHistory.length - 1}
+                    >
+                        →
+                    </button>
+                    {reachedEnd && (
+                        <button
+                            className="ml-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
+                            onClick={generateMoreGenerations}
+                        >
+                            Generate More
+                        </button>
+                    )}
                     <button
                         className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                         onClick={() => setIsPlaying(!isPlaying)}
                     >
                         {isPlaying ? 'Pause' : 'Play'}
                     </button>
-                    <button
-                        className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                        onClick={handleStar}
-                    >
-                        {isStarred ? '⭐ Unstar' : '☆ Star'}
-                    </button>
+                    {!previewMode && (
+                        <button
+                            className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                            onClick={handleStar}
+                        >
+                            {isStarred ? '⭐ Unstar' : '☆ Star'}
+                        </button>
+                    )}
                     <button
                         className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
                         onClick={onExit}
@@ -273,34 +301,6 @@ export const GamePlayer: FC<GamePlayerProps> = ({ gameData, onExit }) => {
                         ))
                     ))}
                 </div>
-            </div>
-
-            <div className="flex gap-2 items-center mt-4">
-                <button
-                    className="px-4 py-2 bg-gray-200 rounded-lg text-black"
-                    onClick={() => setCurrentStep(step => Math.max(0, step - 1))}
-                    disabled={currentStep === 0}
-                >
-                    ←
-                </button>
-                <span className="ml-2">
-                    Generation: {currentStep}
-                </span>
-                <button
-                    className="px-4 py-2 bg-gray-200 rounded-lg text-black"
-                    onClick={() => setCurrentStep(step => Math.min(gameHistory.length - 1, step + 1))}
-                    disabled={currentStep === gameHistory.length - 1}
-                >
-                    →
-                </button>
-                {reachedEnd && (
-                    <button
-                        className="ml-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
-                        onClick={generateMoreGenerations}
-                    >
-                        Generate More
-                    </button>
-                )}
             </div>
         </div>
     );
