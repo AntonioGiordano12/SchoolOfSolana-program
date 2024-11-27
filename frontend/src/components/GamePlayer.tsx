@@ -6,6 +6,7 @@ import { GameOfLife } from './game_of_life';
 import idl from './game_of_life.json';
 import { notify } from "../utils/notifications";
 import { GAME_SEED, STAR_SEED } from '../constants';
+import { set } from 'date-fns';
 
 const idl_string = JSON.stringify(idl);
 const idl_object = JSON.parse(idl_string);
@@ -200,6 +201,8 @@ export const GamePlayer: FC<GamePlayerProps> = ({ gameData, onExit, previewMode 
             const program = new Program<GameOfLife>(idl_object, anchProvider);
 
             if (!isStarred) {
+                notify({ type: 'info', message: 'Starring a game...' });
+
                 await program.methods.starGame()
                     .accountsStrict({
                         game: gamePda,
@@ -211,6 +214,7 @@ export const GamePlayer: FC<GamePlayerProps> = ({ gameData, onExit, previewMode 
                 setIsStarred(true);
                 notify({ type: 'success', message: 'Game starred!' });
             } else {
+                notify({ type: 'info', message: 'UnStarring a game...' });
                 await program.methods.unstarGame()
                     .accountsStrict({
                         game: gamePda,

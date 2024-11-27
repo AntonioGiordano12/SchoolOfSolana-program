@@ -31,12 +31,16 @@ const GameBox: FC<GameBoxProps> = ({ game, onClick, isOwner }) => {
     // Create a mini preview of the game using alive_cells
     const renderPreview = () => {
         return (
-            <div className="grid grid-cols-8 gap-[1px]">
-                {game.aliveCells.slice(0, 8).map((row, rowIndex) => (
-                    row.slice(0, 8).map((cell, colIndex) => (
+            <div className="grid" style={{ 
+                gridTemplateColumns: 'repeat(64, 1fr)',
+                width: '100%',
+                height: '100%'
+            }}>
+                {game.aliveCells.map((row, rowIndex) => (
+                    row.map((cell, colIndex) => (
                         <div
                             key={`${rowIndex}-${colIndex}`}
-                            className={`w-4 h-4 ${cell ? 'bg-indigo-500' : 'bg-white'} border border-gray-200`}
+                            className={`${cell ? 'bg-indigo-500' : 'bg-white'} border-[0.5px] border-gray-200`}
                         />
                     ))
                 ))}
@@ -45,19 +49,15 @@ const GameBox: FC<GameBoxProps> = ({ game, onClick, isOwner }) => {
     };
 
     return (
-        <div
-            className="flex flex-col items-center cursor-pointer transform hover:scale-105 transition-transform"
-            onClick={onClick}
-        >
-            <span className="text-sm font-medium text-white">{game.gameId}</span>
-            <div className="w-32 h-32 bg-white border-2 border-gray-200 rounded-lg shadow-md mb-2 overflow-hidden">
-                <div className="p-1 h-full flex items-center justify-center">
+        <div className="flex flex-col items-center cursor-pointer" onClick={onClick}>
+            <span className="text-sm font-bold text-white">{game.gameId}</span>
+            <div className="w-64 h-64 bg-white border-2 border-gray-200 rounded-lg overflow-hidden mb-2">
+                <div className="p-4 h-full flex items-center justify-center">
                     {renderPreview()}
                 </div>
             </div>
-            <div className="flex items-center mt-1 text-sm text-gray-500">
+            <div className="flex items-center text-sm text-gray-400">
                 <span>⭐ {game.stars}</span>
-                {isOwner && <span className="ml-2">(Your Game)</span>}
             </div>
         </div>
     );
@@ -73,8 +73,8 @@ interface GameSectionProps {
 const GameSection: FC<GameSectionProps> = ({ title, games, onGameSelect, currentWallet }) => {
     return (
         <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4 text-white">{title}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <h2 className="text-2xl font-bold mb-4 text-white">{title}</h2>
+            <div className="grid grid-cols-4 gap-4 max-w-[1400px] mx-auto">
                 {games.map((game, index) => (
                     <GameBox 
                         key={index} 
@@ -206,11 +206,11 @@ export const GameGallery: FC = () => {
 
     if (isCreating) {
         return (
-            <div className="container mx-auto px-4 py-8">
+            <div className="max-w-[1280px] mx-auto p-8">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-2xl font-bold text-white">Create New Game</h1>
                     <button
-                        className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg cursor-pointer"
                         onClick={() => setIsCreating(false)}
                     >
                         Back to Gallery
@@ -228,7 +228,7 @@ export const GameGallery: FC = () => {
 
     if (selectedGame) {
         return (
-            <div className="container mx-auto px-4 py-8">
+            <div className="max-w-[1280px] mx-auto p-8">
                 <GamePlayer 
                     gameData={selectedGame}
                     onExit={() => setSelectedGame(null)}
@@ -238,19 +238,19 @@ export const GameGallery: FC = () => {
     }
 
     return (
-        <div className="container mx-auto px-4 py-8">
+        <div className="max-w-[1280px] mx-auto p-8">
             <div className="flex justify-between items-center mb-8">
                 <h1 className="text-2xl font-bold text-white">Game Gallery</h1>
-                <div className="space-x-4">
+                <div className="flex gap-4">
                     <button
-                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                        className="px-4 py-2 bg-blue-500 text-white rounded-lg cursor-pointer"
                         onClick={fetchGames}
                         disabled={isLoading}
                     >
                         {isLoading ? 'Loading...' : 'Refresh Games'}
                     </button>
                     <button
-                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                        className="px-4 py-2 bg-green-500 text-white rounded-lg cursor-pointer"
                         onClick={() => setIsCreating(true)}
                     >
                         Create New Game
