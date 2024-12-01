@@ -4,7 +4,7 @@ import { GameOfLife } from './game_of_life';
 import idl from './game_of_life.json'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
-import { FEED_SEED } from '../constants';
+import { FEED_SEED, STAR_SEED } from '../constants';
 import { CreateGameOfLife } from './GameOfLife';
 import { GamePlayer } from './GamePlayer';
 import { GameCreator } from './GameCreator';
@@ -141,9 +141,7 @@ export const GameGallery: FC = () => {
     }
 
     const transformGameData = (gameData: any, gamePubkey: PublicKey): GameData => {
-        console.log("Raw gameId:", gameData.gameId);
         const gameIdString = byteArrayToString(Array.from(gameData.gameId));
-        console.log("Converted gameId:", gameIdString);
         return {
             gameId: gameIdString,
             gameAuthor: gameData.gameAuthor,
@@ -154,45 +152,49 @@ export const GameGallery: FC = () => {
     };
 
     const fetchGames = async () => {
-        const getProvider = () => {
-            const provider = new AnchorProvider(connection, wallet, AnchorProvider.defaultOptions())
-            setProvider(provider)
-            return provider
-        };
-
         setIsLoading(true);
         try {
-            const anchProvider = getProvider();
-            const program = new Program<GameOfLife>(idl_object, anchProvider);
+            const provider = new AnchorProvider(connection, wallet, AnchorProvider.defaultOptions());
+            setProvider(provider);
+            const program = new Program<GameOfLife>(idl_object, provider);
 
-            const programAccounts = await connection.getParsedProgramAccounts(programID);
-
-            const [feedPda, feedBump] = PublicKey.findProgramAddressSync([Buffer.from(FEED_SEED)], program.programId);
-
+            // Get all games
+            const [feedPda] = PublicKey.findProgramAddressSync([Buffer.from(FEED_SEED)], program.programId);
             const feedAccount = await program.account.feed.fetch(feedPda);
-
-            const gamePromises = feedAccount.games.map(async (gamePubkey) => {
-                const gameData = await program.account.game.fetch(gamePubkey);
-                // Transform the data as needed
-                return transformGameData(gameData, gamePubkey);
-            });
-
-            const games = await Promise.all(gamePromises);
-
-            console.log("games", games);
-            // Organize games into categories
-            const myGames = games.filter(game =>
-                game.gameAuthor.equals(wallet.publicKey!)
-            );
-            const starred = games.filter(game => game.stars > 0)
-                .sort((a, b) => b.stars - a.stars);
-            const others = games.filter(game =>
-                !game.gameAuthor.equals(wallet.publicKey!)
+            const games = await Promise.all(
+                feedAccount.games.map(async (gamePubkey) => {
+                    const gameData = await program.account.game.fetch(gamePubkey);
+                    return transformGameData(gameData, gamePubkey);
+                })
             );
 
+            // Filter games into categories
+            const myGames = games.filter(game => game.gameAuthor.equals(wallet.publicKey!));
+            
+            // Get starred games by checking if star PDA exists
+            const starredGames = await Promise.all(
+                games.map(async (game) => {
+                    const [starPda] = PublicKey.findProgramAddressSync(
+                        [Buffer.from(STAR_SEED), wallet.publicKey!.toBuffer(), game.pubkey.toBuffer()],
+                        programID
+                    );
+                    try {
+                        await program.account.star.fetch(starPda);
+                        return game;
+                    } catch {
+                        return null;
+                    }
+                })
+            );
+            
+            const confirmedStarredGames = starredGames.filter((game): game is GameData => game !== null);
+            
+            setStarredGames(confirmedStarredGames);
             setMyGames(myGames);
-            setStarredGames(starred);
-            setOtherGames(others);
+            setOtherGames(games.filter(game => 
+                !game.gameAuthor.equals(wallet.publicKey!) && 
+                !confirmedStarredGames.some(starred => starred.pubkey.equals(game.pubkey))
+            ));
         } catch (error) {
             console.error("Error fetching games:", error);
         } finally {
