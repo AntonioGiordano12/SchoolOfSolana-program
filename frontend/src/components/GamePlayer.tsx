@@ -275,12 +275,6 @@ export const GamePlayer: FC<GamePlayerProps> = ({ gameData, onExit, previewMode 
                             {isStarred ? '⭐ Unstar' : '☆ Star'}
                         </button>
                     )}
-                    <button
-                        className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-                        onClick={onExit}
-                    >
-                        Exit
-                    </button>
                 </div>
             </div>
 

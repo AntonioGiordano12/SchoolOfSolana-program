@@ -16,7 +16,6 @@ export const AppBar: React.FC = () => {
   const [isNavOpen, setIsNavOpen] = useState(false);
   const navigation = [
     { name: "Home", href: "/" },
-    { name: "Gallery", href: "/gallery" },
   ];
 
   return (
@@ -52,7 +51,6 @@ export const AppBar: React.FC = () => {
               </svg>
             </Link>
           </div>
-          <WalletMultiButtonDynamic className="btn-ghost btn-sm relative flex md:hidden text-lg " />
         </div>
 
         {/* Nav Links */}
